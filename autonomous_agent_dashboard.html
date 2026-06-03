@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #181c23;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --accent: #6ee7b7;
+    --accent2: #818cf8;
+    --amber: #fbbf24;
+    --coral: #f87171;
+    --blue: #38bdf8;
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-head);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    grid-template-rows: 52px 1fr;
+    height: 100vh;
+    min-height: 600px;
+  }
+
+  /* Topbar */
+  .topbar {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+  }
+  .logo {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .logo span { color: var(--muted); font-weight: 400; }
+  .topbar-sep { width: 1px; height: 20px; background: var(--border); }
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; font-family: var(--font-mono);
+    color: var(--accent); background: rgba(110,231,183,0.08);
+    border: 1px solid rgba(110,231,183,0.2);
+    border-radius: 20px; padding: 3px 10px;
+  }
+  .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.5s ease infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(0.8)} }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .metric-chip {
+    font-size: 11px; font-family: var(--font-mono);
+    color: var(--muted); display: flex; gap: 5px; align-items: center;
+  }
+  .metric-chip strong { color: var(--text); }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px 0;
+  }
+  .sidebar-section { padding: 0 14px; margin-bottom: 20px; }
+  .sidebar-label {
+    font-size: 10px; font-family: var(--font-mono);
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); margin-bottom: 8px; padding: 0 6px;
+  }
+  .run-item {
+    position: relative;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 6px; cursor: pointer;
+    transition: background 0.15s;
+    border: 1px solid transparent;
+  }
+  .run-item:hover { background: var(--surface2); }
+  .run-item.active {
+    background: var(--surface2);
+    border-color: var(--border2);
+  }
+  .run-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .run-dot.running { background: var(--accent); animation: pulse 1.5s ease infinite; }
+  .run-dot.done { background: var(--accent2); }
+  .run-dot.queued { background: var(--amber); }
+  .run-dot.failed { background: var(--coral); }
+  .run-name { font-size: 12px; color: var(--text); flex: 1; }
+  .run-time {
+    font-size: 10px; font-family: var(--font-mono); color: var(--muted);
+    transition: opacity 0.15s;
+  }
+  .run-item:hover .run-time { opacity: 0; }
+  .run-delete {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    display: flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; padding: 0;
+    background: none; border: none; border-radius: 3px;
+    color: var(--muted); font-size: 14px; line-height: 1;
+    cursor: pointer; opacity: 0;
+    transition: opacity 0.15s, color 0.15s, background 0.15s;
+  }
+  .run-item:hover .run-delete { opacity: 1; }
+  .run-delete:hover { color: var(--coral); background: rgba(248,113,113,0.12); }
+
+  /* Main */
+  .main { overflow-y: auto; display: flex; flex-direction: column; }
+
+  .main-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: flex-start; gap: 16px;
+  }
+  .goal-block { flex: 1; }
+  .goal-label { font-size: 10px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 6px; }
+  .goal-text { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.4; }
+  .badge {
+    font-size: 10px; font-family: var(--font-mono);
+    padding: 3px 8px; border-radius: 4px; white-space: nowrap;
+  }
+  .badge-running { background: rgba(110,231,183,0.1); color: var(--accent); border: 1px solid rgba(110,231,183,0.25); }
+  .badge-done { background: rgba(129,140,248,0.1); color: var(--accent2); border: 1px solid rgba(129,140,248,0.25); }
+  .badge-failed { background: rgba(248,113,113,0.1); color: var(--coral); border: 1px solid rgba(248,113,113,0.2); }
+
+  .stats-row {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 1px; background: var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat-cell {
+    background: var(--surface);
+    padding: 14px 20px;
+  }
+  .stat-label { font-size: 10px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px; }
+  .stat-val { font-size: 22px; font-weight: 700; color: var(--text); }
+  .stat-val.green { color: var(--accent); }
+  .stat-val.purple { color: var(--accent2); }
+  .stat-val.amber { color: var(--amber); }
+
+  /* Execution steps */
+  .steps-area { padding: 20px 24px; flex: 1; }
+  .steps-title { font-size: 11px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 16px; }
+
+  .step-row {
+    display: flex; gap: 14px; margin-bottom: 4px;
+    cursor: pointer;
+  }
+  .step-row:last-child .step-line { display: none; }
+
+  .step-left { display: flex; flex-direction: column; align-items: center; }
+  .step-icon {
+    width: 30px; height: 30px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+    border: 1px solid var(--border2);
+  }
+  .step-icon.done { background: rgba(110,231,183,0.1); }
+  .step-icon.running { background: rgba(251,191,36,0.1); animation: stepglow 1s ease infinite; }
+  .step-icon.pending { background: var(--surface2); opacity: 0.5; }
+  .step-icon.failed { background: rgba(248,113,113,0.1); }
+  @keyframes stepglow { 0%,100%{box-shadow:0 0 0 0 rgba(251,191,36,0)} 50%{box-shadow:0 0 0 3px rgba(251,191,36,0.15)} }
+
+  .step-line { width: 1px; flex: 1; min-height: 12px; background: var(--border); margin: 3px auto; }
+
+  .step-body { flex: 1; padding-bottom: 16px; }
+  .step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 0; }
+  .step-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .step-tool {
+    font-size: 10px; font-family: var(--font-mono);
+    padding: 2px 7px; border-radius: 4px;
+    background: var(--surface2); color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .step-tool.web { color: var(--blue); border-color: rgba(56,189,248,0.2); background: rgba(56,189,248,0.06); }
+  .step-tool.code { color: var(--accent); border-color: rgba(110,231,183,0.2); background: rgba(110,231,183,0.06); }
+  .step-tool.api { color: var(--accent2); border-color: rgba(129,140,248,0.2); background: rgba(129,140,248,0.06); }
+  .step-tool.llm { color: var(--amber); border-color: rgba(251,191,36,0.2); background: rgba(251,191,36,0.06); }
+
+  .step-duration { font-size: 10px; font-family: var(--font-mono); color: var(--muted); margin-left: auto; }
+
+  .step-detail {
+    margin-top: 8px; padding: 10px 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; font-size: 11px; font-family: var(--font-mono);
+    color: var(--muted); line-height: 1.6;
+    display: none;
+  }
+  .step-detail.open { display: block; }
+  .step-detail .key { color: var(--accent2); }
+  .step-detail .val { color: var(--text); }
+  .step-detail .out { color: var(--accent); }
+
+  /* Spinner for running steps */
+  .step-spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(251,191,36,0.25);
+    border-top-color: var(--amber);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Typed step detail variants ────────────────────────────────── */
+  .step-row.no-toggle { cursor: default; }
+  .step-detail.plan-detail ol { padding-left: 16px; margin: 4px 0; list-style: decimal; }
+  .step-detail.plan-detail li { color: var(--text); padding: 2px 0; }
+  .step-detail.reasoning-detail { border-left: 2px solid var(--accent2); }
+
+  /* Markdown output (Final answer) */
+  .md-header { font-family: var(--font-head); font-weight: 700; font-size: 12px; color: var(--text); margin: 8px 0 4px; }
+  .md-header:first-child { margin-top: 0; }
+  .md-bullet { color: var(--text); font-size: 11px; padding: 2px 0 2px 8px; }
+  .md-text   { color: var(--muted); font-size: 11px; padding: 2px 0; }
+  .md-table  { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11px; }
+  .md-table th { text-align: left; color: var(--accent2); padding: 4px 8px; border-bottom: 1px solid var(--border2); }
+  .md-table td { color: var(--text); padding: 3px 8px; border-bottom: 1px solid var(--border); }
+  .md-confidence { display: inline-flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .md-conf-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .md-conf-value {
+    font-size: 11px; font-family: var(--font-mono);
+    padding: 2px 8px; border-radius: 4px;
+    background: rgba(110,231,183,0.1); color: var(--accent);
+    border: 1px solid rgba(110,231,183,0.2);
+  }
+
+  .input-row {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    display: flex; gap: 10px; align-items: center;
+  }
+  .goal-input {
+    flex: 1; background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px; padding: 10px 14px;
+    font-family: var(--font-head); font-size: 13px;
+    color: var(--text); outline: none;
+    transition: border-color 0.15s;
+  }
+  .goal-input:focus { border-color: rgba(110,231,183,0.4); }
+  .goal-input::placeholder { color: var(--muted); }
+  .run-btn {
+    padding: 10px 18px; background: var(--accent);
+    color: #0a0c10; border: none; border-radius: 8px;
+    font-family: var(--font-head); font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+  .run-btn:hover { opacity: 0.85; }
+  .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="logo">AgentOS <span>/ Execution Engine</span></div>
+    <div class="topbar-sep"></div>
+    <div class="status-pill"><div class="pulse"></div><span id="worker-count">0</span> active workers</div>
+    <div class="topbar-right">
+      <div class="metric-chip">Redis <strong id="q-size">0</strong> queued</div>
+      <div class="topbar-sep"></div>
+      <div class="metric-chip">MongoDB <strong>connected</strong></div>
+      <div class="topbar-sep"></div>
+      <div class="metric-chip">Uptime <strong id="uptime">00:00:00</strong></div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Active Runs</div>
+      <div style="font-size:12px;color:var(--muted);padding:6px 10px">Loading…</div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Completed</div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main" id="main-panel">
+
+    <div class="main-header">
+      <div class="goal-block">
+        <div class="goal-label">Goal</div>
+        <div class="goal-text" id="goal-text">Select a run or launch a new one</div>
+      </div>
+      <div class="badge badge-running" id="run-badge" style="visibility:hidden">—</div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-cell">
+        <div class="stat-label">Elapsed</div>
+        <div class="stat-val amber" id="elapsed">—</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label">Steps</div>
+        <div class="stat-val" id="step-count">—</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label">Tool calls</div>
+        <div class="stat-val green" id="tool-calls">—</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label">Tokens used</div>
+        <div class="stat-val purple" id="tokens">—</div>
+      </div>
+    </div>
+
+    <div class="steps-area">
+      <div class="steps-title">Execution trace</div>
+      <div id="steps-list"></div>
+    </div>
+
+    <div class="input-row">
+      <input class="goal-input" id="goal-input" placeholder="Enter a high-level goal for the agent…" />
+      <button class="run-btn" id="run-btn" onclick="launchRun()">&#9654; Run Agent</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+
+// ── State ──────────────────────────────────────────────────────────
+let activeRunId   = null;
+let runsCache     = {};      // id -> run object
+let activeSSE     = null;    // EventSource
+let activePoller  = null;    // setInterval id
+let elapsedTimer  = null;    // setInterval id for smooth elapsed display
+let elapsedBase   = 0;       // elapsed_ms from last API sync
+let elapsedSyncAt = 0;       // Date.now() at last sync
+let openStep      = null;    // index of expanded step detail
+let uptimeSec     = 0;
+
+// ── Uptime ─────────────────────────────────────────────────────────
+setInterval(() => {
+  uptimeSec++;
+  const h = String(Math.floor(uptimeSec / 3600)).padStart(2, '0');
+  const m = String(Math.floor((uptimeSec % 3600) / 60)).padStart(2, '0');
+  const s = String(uptimeSec % 60).padStart(2, '0');
+  document.getElementById('uptime').textContent = `${h}:${m}:${s}`;
+}, 1000);
+
+// ── Helpers ────────────────────────────────────────────────────────
+function fmtMs(ms) {
+  if (ms == null) return '—';
+  return (ms / 1000).toFixed(1) + 's';
+}
+
+function toolIcon(tool) {
+  return { llm: '🧠', web: '🔍', code: '⚙️', api: '📡' }[tool] || '▸';
+}
+
+// ── Sidebar ────────────────────────────────────────────────────────
+async function loadSidebar() {
+  try {
+    const res = await fetch(`${API}/runs`);
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : (data.runs || []);
+
+    list.forEach(r => { runsCache[r.id] = { ...runsCache[r.id], ...r }; });
+    renderSidebar(list);
+
+    updateTopbarCounters();
+
+    // Auto-select first run on initial load
+    if (!activeRunId && list.length > 0) selectRun(list[0].id);
+  } catch (e) {
+    console.error('loadSidebar:', e);
+    document.querySelector('.sidebar').innerHTML = `
+      <div class="sidebar-section">
+        <div style="font-size:12px;color:var(--coral);padding:10px">
+          Could not reach API at ${API}
+        </div>
+      </div>`;
+  }
+}
+
+function renderSidebar(list) {
+  const active   = list.filter(r => r.status === 'running' || r.status === 'queued');
+  const finished = list.filter(r => r.status === 'done'    || r.status === 'failed');
+
+  document.querySelector('.sidebar').innerHTML = `
+    <div class="sidebar-section" id="sidebar-active">
+      <div class="sidebar-label">Active Runs</div>
+      ${active.length
+        ? active.map(sidebarItem).join('')
+        : '<div style="font-size:12px;color:var(--muted);padding:6px 10px">No active runs</div>'}
+    </div>
+    <div class="sidebar-section" id="sidebar-completed">
+      <div class="sidebar-label">Completed</div>
+      ${finished.length
+        ? finished.map(sidebarItem).join('')
+        : '<div style="font-size:12px;color:var(--muted);padding:6px 10px">No completed runs</div>'}
+    </div>`;
+}
+
+function sidebarItem(r) {
+  const dot  = { running: 'running', queued: 'queued', done: 'done', failed: 'failed' }[r.status] || 'queued';
+  const time = r.status === 'queued' ? 'queued' : fmtMs(r.elapsed_ms);
+  const name = (r.goal || 'Unnamed').slice(0, 22) + ((r.goal || '').length > 22 ? '…' : '');
+  const cls  = r.id === activeRunId ? ' active' : '';
+  return `<div class="run-item${cls}" data-run-id="${r.id}" onclick="selectRun('${r.id}')">
+    <div class="run-dot ${dot}"></div>
+    <div class="run-name">${name}</div>
+    <div class="run-time">${time}</div>
+    <button class="run-delete" onclick="event.stopPropagation();deleteRun('${r.id}')" title="Delete">&#215;</button>
+  </div>`;
+}
+
+// ── Run detail ─────────────────────────────────────────────────────
+async function selectRun(id) {
+  if (activeRunId === id) return;
+  activeRunId = id;
+  openStep    = null;
+
+  stopStream();
+  stopPoller();
+  stopElapsedTimer();
+
+  document.querySelectorAll('.run-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.runId === String(id)));
+
+  const run = await fetchRun(id);
+  if (!run) return;
+
+  renderRun(run);
+
+  if (run.status !== 'done' && run.status !== 'failed') {
+    syncElapsed(run.elapsed_ms || 0);
+    startElapsedTimer();
+    startStream(id);
+    startPoller(id);
+  }
+}
+
+async function fetchRun(id) {
+  try {
+    const res = await fetch(`${API}/runs/${id}`);
+    if (!res.ok) throw new Error(res.status);
+    const run = await res.json();
+    runsCache[id] = run;
+    return run;
+  } catch (e) {
+    console.error('fetchRun:', e);
+    return null;
+  }
+}
+
+function renderRun(r) {
+  document.getElementById('goal-text').textContent = r.goal || '—';
+
+  const badge = document.getElementById('run-badge');
+  badge.style.cssText = '';
+  badge.style.visibility = 'visible';
+  const statusMap = {
+    running: ['badge badge-running', '⚡ RUNNING'],
+    done:    ['badge badge-done',    '✓ DONE'],
+    failed:  ['badge badge-failed',  '✗ FAILED'],
+    queued:  ['badge badge-running', '⏳ QUEUED'],
+  };
+  const [cls, label] = statusMap[r.status] || statusMap.queued;
+  badge.className = cls;
+  badge.textContent = label;
+  if (r.status === 'queued') badge.style.color = '#fbbf24';
+
+  const steps  = r.steps || [];
+  const done   = steps.filter(s => s.status === 'done' || s.status === 'failed').length;
+  const total  = steps.length;
+  const tools  = r.tool_calls  ?? r.tools_used  ?? done;
+  const tokens = r.tokens_used ?? r.tokens      ?? 0;
+
+  if (r.status !== 'running') {
+    document.getElementById('elapsed').textContent = fmtMs(r.elapsed_ms);
+    stopElapsedTimer();
+  }
+  document.getElementById('step-count').textContent = total ? `${done} / ${total}` : '0 / ?';
+  document.getElementById('tool-calls').textContent = tools;
+  document.getElementById('tokens').textContent = Number(tokens).toLocaleString();
+
+  const list = document.getElementById('steps-list');
+  if (!steps.length) {
+    list.innerHTML = r.status === 'queued'
+      ? '<div style="font-size:13px;color:var(--muted);padding:20px 0;">Agent queued — waiting for a free worker slot…</div>'
+      : '<div style="font-size:13px;color:var(--muted);padding:20px 0;">No steps yet.</div>';
+    return;
+  }
+
+  list.innerHTML = steps.map((s, i) => buildStepHtml(s, i)).join('');
+}
+
+// ── Step rendering helpers ─────────────────────────────────────────
+function buildStepHtml(s, i) {
+  const state   = s.status || 'pending';
+  const dur     = s.duration_ms != null ? fmtMs(s.duration_ms) : (state === 'running' ? '...' : '');
+  const detail  = s.detail || {};
+  const spinner = '<div class="step-spinner"></div>';
+
+  // Planning step ────────────────────────────────────────────────────
+  if (s.name === 'Planning' && detail.plan) {
+    const icon  = state === 'running' ? spinner : '📋';
+    const items = (Array.isArray(detail.plan) ? detail.plan : [detail.plan])
+      .map(p => `<li>${p}</li>`).join('');
+    return stepRowHtml(i, state, icon, s, dur, true, `
+      <div class="step-detail plan-detail open" id="detail-${i}">
+        <ol style="padding-left:16px;margin:4px 0;">${items}</ol>
+      </div>`);
+  }
+
+  // Agent reasoning step ─────────────────────────────────────────────
+  if (s.name === 'Agent reasoning') {
+    const icon = state === 'running' ? spinner : '🧠';
+    const text = detail.output || detail.reasoning || Object.values(detail)[0] || '';
+    return stepRowHtml(i, state, icon, s, dur, true, `
+      <div class="step-detail reasoning-detail open" id="detail-${i}">
+        <span class="val" style="font-style:italic;">${text}</span>
+      </div>`);
+  }
+
+  // Final answer step ────────────────────────────────────────────────
+  if (s.name === 'Final answer') {
+    const icon = state === 'running' ? spinner : '✅';
+    const raw  = typeof detail.output === 'string'
+      ? detail.output
+      : JSON.stringify(detail.output ?? detail);
+    return stepRowHtml(i, state, icon, s, dur, true, `
+      <div class="step-detail final-answer open" id="detail-${i}">
+        ${renderMarkdown(raw)}
+      </div>`);
+  }
+
+  // Default step (web_search, execute_python, http_request, etc.) ────
+  const icon   = state === 'running' ? spinner : toolIcon(s.tool);
+  const isOpen = openStep === i;
+  const defaultDetail = Object.keys(detail).length ? `
+    <div class="step-detail${isOpen ? ' open' : ''}" id="detail-${i}">
+      ${Object.entries(detail).map(([k, v]) =>
+        `<span class="key">${k}:</span> <span class="${k === 'output' || k === 'out' ? 'out' : 'val'}">${
+          typeof v === 'object' ? JSON.stringify(v) : v
+        }</span><br>`).join('')}
+    </div>` : '';
+  return stepRowHtml(i, state, icon, s, dur, false, defaultDetail);
+}
+
+function stepRowHtml(i, state, icon, s, dur, noToggle, detailHtml) {
+  const rowCls  = noToggle ? 'step-row no-toggle' : 'step-row';
+  const onClick = noToggle ? '' : `onclick="toggleStep(${i})"`;
+  return `
+  <div class="${rowCls}" ${onClick}>
+    <div class="step-left">
+      <div class="step-icon ${state}">${icon}</div>
+      <div class="step-line"></div>
+    </div>
+    <div class="step-body">
+      <div class="step-header">
+        <div class="step-name">${s.name || 'Step ' + (i + 1)}</div>
+        <div class="step-tool ${s.tool || ''}">${(s.tool || '').toUpperCase()}</div>
+        <div class="step-duration">${dur}</div>
+      </div>
+      ${detailHtml || ''}
+    </div>
+  </div>`;
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  let html = '';
+  let tableBuffer = [];
+
+  function flushTable() {
+    if (!tableBuffer.length) return;
+    html += renderTable(tableBuffer);
+    tableBuffer = [];
+  }
+
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line) { flushTable(); continue; }
+
+    if (line.startsWith('|')) {
+      tableBuffer.push(line);
+    } else {
+      flushTable();
+      if (line.startsWith('## ')) {
+        html += `<div class="md-header">${line.slice(3)}</div>`;
+      } else if (line.startsWith('- ') || line.startsWith('• ')) {
+        html += `<div class="md-bullet">• ${line.slice(2)}</div>`;
+      } else if (/confidence score/i.test(line)) {
+        const parts = line.split(/:\s*/);
+        const val   = parts.length > 1 ? parts.slice(1).join(': ') : line;
+        html += `<div class="md-confidence">
+          <span class="md-conf-label">Confidence Score</span>
+          <span class="md-conf-value">${val}</span>
+        </div>`;
+      } else {
+        html += `<div class="md-text">${line}</div>`;
+      }
+    }
+  }
+  flushTable();
+  return html;
+}
+
+function renderTable(rows) {
+  // Drop separator rows (e.g. | --- | --- |)
+  const dataRows = rows.filter(r => !/^\|[\s|:\-]+\|$/.test(r));
+  if (!dataRows.length) return '';
+  const [header, ...body] = dataRows;
+  const parseCells = row =>
+    row.split('|').filter((_, j, a) => j > 0 && j < a.length - 1).map(c => c.trim());
+  const ths = parseCells(header).map(c => `<th>${c}</th>`).join('');
+  const trs = body.map(r =>
+    `<tr>${parseCells(r).map(c => `<td>${c}</td>`).join('')}</tr>`).join('');
+  return `<table class="md-table"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+}
+
+function toggleStep(i) {
+  openStep = openStep === i ? null : i;
+  const r = runsCache[activeRunId];
+  if (r) renderRun(r);
+}
+
+// ── SSE stream ─────────────────────────────────────────────────────
+function startStream(id) {
+  activeSSE = new EventSource(`${API}/runs/${id}/stream`);
+
+  function handleEvent(raw) {
+    try {
+      const data = JSON.parse(raw);
+      const run  = runsCache[id];
+      if (!run) return;
+
+      // Step update — servers may use different shapes
+      const step = data.step
+        || (data.type === 'step' || data.type === 'step_update' ? data.data || data : null)
+        || (data.name && data.status ? data : null);
+
+      if (step && step.name) {
+        run.steps = run.steps || [];
+        const idx = run.steps.findIndex(s =>
+          s.id != null ? s.id === step.id : s.name === step.name);
+        if (idx >= 0) run.steps[idx] = { ...run.steps[idx], ...step };
+        else          run.steps.push(step);
+        if (activeRunId === id) renderRun(run);
+      }
+
+      // Run completion signal
+      const status = data.status
+        || (data.type === 'done' || data.type === 'complete' ? 'done' : null);
+      if (status === 'done' || status === 'failed') {
+        run.status = status;
+        if (data.elapsed_ms != null) run.elapsed_ms = data.elapsed_ms;
+        stopStream();
+        stopPoller();
+        stopElapsedTimer();
+        if (activeRunId === id) renderRun(run);
+        promoteSidebarItem(id, status, run.elapsed_ms);
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
+  activeSSE.onmessage = e => handleEvent(e.data);
+  ['step', 'step_update', 'done', 'complete'].forEach(type =>
+    activeSSE.addEventListener(type, e => handleEvent(e.data)));
+  // SSE error/close is fine — the poller covers us
+  activeSSE.onerror = () => { activeSSE?.close(); activeSSE = null; };
+}
+
+function stopStream() {
+  activeSSE?.close();
+  activeSSE = null;
+}
+
+// ── Polling (1 s fallback / authoritative state) ───────────────────
+function startPoller(id) {
+  activePoller = setInterval(async () => {
+    const prevStatus = runsCache[id]?.status;
+    const run = await fetchRun(id);
+    if (!run) return;
+    syncElapsed(run.elapsed_ms || 0);
+    if (activeRunId === id) renderRun(run);
+    if (prevStatus !== run.status) updateTopbarCounters();
+    if (run.status === 'done' || run.status === 'failed') {
+      stopPoller();
+      stopStream();
+      stopElapsedTimer();
+      promoteSidebarItem(id, run.status, run.elapsed_ms);
+    }
+  }, 1000);
+}
+
+function stopPoller() {
+  clearInterval(activePoller);
+  activePoller = null;
+}
+
+// ── Smooth elapsed display (100 ms interpolation between polls) ────
+function syncElapsed(apiMs) {
+  elapsedBase   = apiMs;
+  elapsedSyncAt = Date.now();
+}
+
+function startElapsedTimer() {
+  elapsedTimer = setInterval(() => {
+    if (runsCache[activeRunId]?.status === 'running') {
+      const ms = elapsedBase + (Date.now() - elapsedSyncAt);
+      document.getElementById('elapsed').textContent = fmtMs(ms);
+    }
+  }, 100);
+}
+
+function stopElapsedTimer() {
+  clearInterval(elapsedTimer);
+  elapsedTimer = null;
+}
+
+// ── Sidebar surgical updates ───────────────────────────────────────
+function updateTopbarCounters() {
+  const running = Object.values(runsCache).filter(r => r.status === 'running').length;
+  const queued  = Object.values(runsCache).filter(r => r.status === 'queued').length;
+  document.getElementById('worker-count').textContent = running;
+  document.getElementById('q-size').textContent = queued;
+}
+
+function insertSidebarItemActive(run) {
+  const section = document.getElementById('sidebar-active');
+  if (!section) return;
+  // Remove "No active runs" placeholder if present
+  section.querySelector('div:not(.sidebar-label):not(.run-item)')?.remove();
+  // Parse HTML string into a real DOM node via <template>
+  const tmpl = document.createElement('template');
+  tmpl.innerHTML = sidebarItem(run);
+  section.querySelector('.sidebar-label').insertAdjacentElement('afterend', tmpl.content.firstElementChild);
+}
+
+function promoteSidebarItem(id, status, elapsed_ms) {
+  if (runsCache[id]) {
+    runsCache[id].status = status;
+    if (elapsed_ms != null) runsCache[id].elapsed_ms = elapsed_ms;
+  }
+
+  const el = document.querySelector(`.run-item[data-run-id="${id}"]`);
+  if (!el) { loadSidebar(); return; }  // not in DOM yet, fall back to full reload
+
+  // Update dot (stop the running animation) and elapsed time
+  el.querySelector('.run-dot').className = `run-dot ${status}`;
+  el.querySelector('.run-time').textContent = elapsed_ms != null ? fmtMs(elapsed_ms) : '—';
+
+  // Move element: remove from active section
+  el.remove();
+
+  // Insert at top of completed section
+  const completedSection = document.getElementById('sidebar-completed');
+  if (completedSection) {
+    completedSection.querySelector('div:not(.sidebar-label):not(.run-item)')?.remove();
+    completedSection.querySelector('.sidebar-label').insertAdjacentElement('afterend', el);
+  }
+
+  // Show empty placeholder in active section if it's now empty
+  const activeSection = document.getElementById('sidebar-active');
+  if (activeSection && !activeSection.querySelector('.run-item')) {
+    const placeholder = document.createElement('div');
+    placeholder.style.cssText = 'font-size:12px;color:var(--muted);padding:6px 10px';
+    placeholder.textContent = 'No active runs';
+    activeSection.querySelector('.sidebar-label').insertAdjacentElement('afterend', placeholder);
+  }
+
+  updateTopbarCounters();
+}
+
+async function deleteRun(id) {
+  try {
+    const res = await fetch(`${API}/runs/${id}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) throw new Error(res.status);
+  } catch (e) {
+    console.error('deleteRun:', e);
+    // Still remove from UI optimistically
+  }
+
+  const el = document.querySelector(`.run-item[data-run-id="${id}"]`);
+  const sectionId = el?.closest('.sidebar-section')?.id;
+  el?.remove();
+  delete runsCache[id];
+
+  // Restore empty-state placeholder if the section is now empty
+  if (sectionId) {
+    const section = document.getElementById(sectionId);
+    if (section && !section.querySelector('.run-item')) {
+      const placeholder = document.createElement('div');
+      placeholder.style.cssText = 'font-size:12px;color:var(--muted);padding:6px 10px';
+      placeholder.textContent = sectionId === 'sidebar-active' ? 'No active runs' : 'No completed runs';
+      section.querySelector('.sidebar-label').insertAdjacentElement('afterend', placeholder);
+    }
+  }
+
+  if (activeRunId === id) {
+    stopStream();
+    stopPoller();
+    stopElapsedTimer();
+    activeRunId = null;
+    showEmptyState();
+  }
+}
+
+function showEmptyState() {
+  document.getElementById('goal-text').textContent = 'Select a run or launch a new one';
+  document.getElementById('run-badge').style.visibility = 'hidden';
+  document.getElementById('elapsed').textContent = '—';
+  document.getElementById('step-count').textContent = '—';
+  document.getElementById('tool-calls').textContent = '—';
+  document.getElementById('tokens').textContent = '—';
+  document.getElementById('steps-list').innerHTML = '';
+}
+
+// ── Launch new run ─────────────────────────────────────────────────
+async function launchRun() {
+  const input = document.getElementById('goal-input');
+  const goal  = input.value.trim();
+  if (!goal) return;
+
+  const btn = document.getElementById('run-btn');
+  btn.disabled    = true;
+  btn.textContent = '⏳ Launching…';
+
+  try {
+    const res = await fetch(`${API}/runs`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ goal }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const run = await res.json();
+
+    runsCache[run.id] = run;
+    input.value = '';
+
+    // Inject into the sidebar immediately — no API round-trip needed
+    insertSidebarItemActive(run);
+    activeRunId = null;  // clear so selectRun's guard doesn't short-circuit
+    selectRun(run.id);
+  } catch (e) {
+    console.error('launchRun:', e);
+    alert('Failed to start run: ' + e.message);
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '▶ Run Agent';
+  }
+}
+
+// Allow Enter key in the input field
+document.getElementById('goal-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') launchRun();
+});
+
+// ── Init ───────────────────────────────────────────────────────────
+loadSidebar();
+</script>
+</body>
+</html>
