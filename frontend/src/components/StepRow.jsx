@@ -1,9 +1,21 @@
-// ── Icon helpers ──────────────────────────────────────────────────
+import { useState } from 'react'
+
+// ── Icon helpers ───────────────────────────────────────────────────
 const TOOL_ICONS = { llm: '🧠', web: '🔍', code: '⚙️', api: '📡' }
 function toolIcon(tool) { return TOOL_ICONS[tool] || '▸' }
 function Spinner() { return <div className="step-spinner" /> }
 
-// ── Typed detail renderers ────────────────────────────────────────
+// ── Inline bold: **text** → <strong> ──────────────────────────────
+function inlineBold(text) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  return parts.map((p, i) =>
+    p.startsWith('**') && p.endsWith('**')
+      ? <strong key={i}>{p.slice(2, -2)}</strong>
+      : p
+  )
+}
+
+// ── Planning ──────────────────────────────────────────────────────
 function PlanDetail({ plan }) {
   const items = Array.isArray(plan) ? plan : [String(plan)]
   return (
@@ -15,6 +27,7 @@ function PlanDetail({ plan }) {
   )
 }
 
+// ── Agent reasoning ───────────────────────────────────────────────
 function ReasoningDetail({ text }) {
   return (
     <div className="step-detail reasoning-detail open">
@@ -23,7 +36,7 @@ function ReasoningDetail({ text }) {
   )
 }
 
-// ── Markdown renderer for Final answer ───────────────────────────
+// ── Final answer (markdown) ───────────────────────────────────────
 function MarkdownTable({ rows }) {
   const data = rows.filter(r => !/^\|[\s|:\-]+\|$/.test(r))
   if (!data.length) return null
@@ -39,9 +52,9 @@ function MarkdownTable({ rows }) {
 
 function FinalAnswerDetail({ text }) {
   if (!text) return null
-  const nodes  = []
-  let   tbuf   = []
-  let   key    = 0
+  const nodes = []
+  let   tbuf  = []
+  let   key   = 0
 
   const flush = () => {
     if (tbuf.length) { nodes.push(<MarkdownTable key={key++} rows={[...tbuf]} />); tbuf = [] }
@@ -53,9 +66,9 @@ function FinalAnswerDetail({ text }) {
     if (line.startsWith('|')) { tbuf.push(line); continue }
     flush()
     if (line.startsWith('## '))
-      nodes.push(<div key={key++} className="md-header">{line.slice(3)}</div>)
+      nodes.push(<div key={key++} className="md-header">{inlineBold(line.slice(3))}</div>)
     else if (line.startsWith('- ') || line.startsWith('• '))
-      nodes.push(<div key={key++} className="md-bullet">• {line.slice(2)}</div>)
+      nodes.push(<div key={key++} className="md-bullet">• {inlineBold(line.slice(2))}</div>)
     else if (/confidence score/i.test(line)) {
       const parts = line.split(/:\s*/)
       const val   = parts.length > 1 ? parts.slice(1).join(': ') : line
@@ -66,14 +79,126 @@ function FinalAnswerDetail({ text }) {
         </div>
       )
     } else {
-      nodes.push(<div key={key++} className="md-text">{line}</div>)
+      nodes.push(<div key={key++} className="md-text">{inlineBold(line)}</div>)
     }
   }
   flush()
   return <div className="step-detail final-answer open">{nodes}</div>
 }
 
-// ── Default key/value detail ──────────────────────────────────────
+// ── web_search ────────────────────────────────────────────────────
+function WebSearchDetail({ detail, dur }) {
+  const query   = detail.query   || ''
+  const results = Array.isArray(detail.results) ? detail.results : []
+  return (
+    <div className="step-detail open">
+      {query && (
+        <div className="sd-query">
+          <div className="sd-query-label">Query</div>
+          <div className="sd-query-text">{query}</div>
+        </div>
+      )}
+      <div className="sd-results">
+        {results.map((r, i) => (
+          <div key={i} className="sd-result">
+            <a href={r.url} target="_blank" rel="noreferrer" className="sd-result-title">
+              {r.title || r.url}
+            </a>
+            {r.snippet && <div className="sd-result-snippet">{r.snippet}</div>}
+          </div>
+        ))}
+      </div>
+      <div className="sd-footer">
+        <span>{results.length} source{results.length !== 1 ? 's' : ''} found</span>
+        {dur && <span>{dur}</span>}
+      </div>
+    </div>
+  )
+}
+
+// ── http_request ──────────────────────────────────────────────────
+function HttpRequestDetail({ detail }) {
+  const [expanded, setExpanded] = useState(false)
+  const method = (detail.method || 'GET').toLowerCase()
+  const url    = detail.url || ''
+  const status = detail.status
+  const body   = detail.body
+
+  const bodyStr = body == null ? '' : typeof body === 'object' ? JSON.stringify(body, null, 2) : String(body)
+  const preview = bodyStr.slice(0, 200)
+  const hasMore = bodyStr.length > 200
+
+  const statusColor =
+    status == null  ? 'var(--muted)' :
+    status < 300    ? 'var(--accent)' :
+    status < 400    ? 'var(--amber)' :
+    /* 4xx/5xx */     'var(--coral)'
+  const statusLabel =
+    status == null ? '' : status < 300 ? 'OK' : status < 400 ? 'Redirect' : 'Error'
+
+  return (
+    <div className="step-detail open">
+      <div className="sd-http-line">
+        <span className={`sd-method sd-method-${method}`}>{method.toUpperCase()}</span>
+        <span className="sd-url">{url}</span>
+      </div>
+      {status != null && (
+        <div className="sd-status">
+          <span style={{ color: statusColor, fontWeight: 700 }}>{status}</span>
+          {statusLabel && <span style={{ color: 'var(--muted)', marginLeft: 6 }}>{statusLabel}</span>}
+        </div>
+      )}
+      {bodyStr && (
+        <div className="sd-body">
+          <pre className="sd-pre">{expanded ? bodyStr : preview}{!expanded && hasMore ? '…' : ''}</pre>
+          {hasMore && (
+            <button
+              className="sd-toggle"
+              onClick={e => { e.stopPropagation(); setExpanded(x => !x) }}
+            >
+              {expanded ? 'show less ↑' : 'show more ↓'}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── execute_python ────────────────────────────────────────────────
+function ExecutePythonDetail({ detail }) {
+  const code     = detail.code      || ''
+  const stdout   = detail.stdout    || ''
+  const stderr   = detail.stderr    || ''
+  const exitCode = detail.exit_code
+
+  return (
+    <div className="step-detail open">
+      {code && <pre className="sd-code">{code}</pre>}
+      {stdout && (
+        <div className="sd-output sd-stdout">
+          <span className="sd-output-label">stdout</span>
+          <pre className="sd-pre">{stdout}</pre>
+        </div>
+      )}
+      {stderr && (
+        <div className="sd-output sd-stderr">
+          <span className="sd-output-label">stderr</span>
+          <pre className="sd-pre">{stderr}</pre>
+        </div>
+      )}
+      {exitCode != null && (
+        <div className="sd-exit">
+          <span className={`sd-exit-badge ${exitCode === 0 ? 'success' : 'error'}`}>
+            exit {exitCode}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Default key/value ─────────────────────────────────────────────
 function DefaultDetail({ detail, isOpen, index }) {
   const entries = Object.entries(detail)
   if (!entries.length) return null
@@ -106,18 +231,30 @@ export default function StepRow({ step, index, isOpen, onToggle, isLast }) {
     icon       = state === 'running' ? <Spinner /> : '📋'
     detailNode = <PlanDetail plan={detail.plan} />
     noToggle   = true
+
   } else if (step.name === 'Agent reasoning') {
     icon       = state === 'running' ? <Spinner /> : '🧠'
-    const text = detail.output || detail.reasoning || Object.values(detail)[0] || ''
-    detailNode = <ReasoningDetail text={String(text)} />
+    detailNode = <ReasoningDetail text={String(detail.output || detail.reasoning || Object.values(detail)[0] || '')} />
     noToggle   = true
+
   } else if (step.name === 'Final answer') {
     icon       = state === 'running' ? <Spinner /> : '✅'
-    const raw  = typeof detail.output === 'string'
-      ? detail.output
-      : JSON.stringify(detail.output ?? detail)
+    const raw  = typeof detail.output === 'string' ? detail.output : JSON.stringify(detail.output ?? detail)
     detailNode = <FinalAnswerDetail text={raw} />
     noToggle   = true
+
+  } else if (step.name === 'web_search') {
+    icon       = state === 'running' ? <Spinner /> : '🔍'
+    detailNode = isOpen ? <WebSearchDetail detail={detail} dur={dur} /> : null
+
+  } else if (step.name === 'http_request') {
+    icon       = state === 'running' ? <Spinner /> : '📡'
+    detailNode = isOpen ? <HttpRequestDetail detail={detail} /> : null
+
+  } else if (step.name === 'execute_python') {
+    icon       = state === 'running' ? <Spinner /> : '⚙️'
+    detailNode = isOpen ? <ExecutePythonDetail detail={detail} /> : null
+
   } else {
     icon       = state === 'running' ? <Spinner /> : toolIcon(step.tool)
     detailNode = <DefaultDetail detail={detail} isOpen={isOpen} index={index} />

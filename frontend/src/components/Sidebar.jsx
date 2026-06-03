@@ -33,6 +33,42 @@ function SidebarItem({ run, active, onSelect, onDelete }) {
   )
 }
 
+function MetricsPanel({ activeRuns, completedRuns }) {
+  const real = [...activeRuns, ...completedRuns].filter(r => !r.id?.startsWith('pending-'))
+  const total   = real.length
+  const done    = real.filter(r => r.status === 'done').length
+  const failed  = real.filter(r => r.status === 'failed').length
+  const withMs  = real.filter(r => r.elapsed_ms != null && r.elapsed_ms > 0)
+  const avgMs   = withMs.length ? withMs.reduce((s, r) => s + r.elapsed_ms, 0) / withMs.length : null
+  const withTc  = real.filter(r => r.tool_calls != null)
+  const avgTc   = withTc.length ? withTc.reduce((s, r) => s + r.tool_calls, 0) / withTc.length : 0
+  const tokens  = real.reduce((s, r) => s + (r.tokens_used || 0), 0)
+  const rate    = total > 0 ? Math.round((done / total) * 100) : 0
+
+  const metrics = [
+    { label: 'Total Runs',     value: total,                          color: 'var(--text)'    },
+    { label: 'Success Rate',   value: total > 0 ? `${rate}%` : '—',  color: 'var(--accent)'  },
+    { label: 'Avg Time',       value: avgMs != null ? fmtMs(avgMs) : '—', color: 'var(--amber)' },
+    { label: 'Avg Tool Calls', value: withTc.length ? avgTc.toFixed(1) : '—', color: 'var(--accent2)' },
+    { label: 'Total Tokens',   value: tokens > 0 ? tokens.toLocaleString() : '—', color: 'var(--accent2)' },
+    { label: 'Failed Runs',    value: failed,                         color: failed > 0 ? 'var(--coral)' : 'var(--muted)' },
+  ]
+
+  return (
+    <div className="metrics-panel">
+      <div className="sidebar-label" style={{ padding: '0 6px', marginBottom: 10 }}>Session Stats</div>
+      <div className="metrics-grid">
+        {metrics.map(m => (
+          <div key={m.label} className="metric-card">
+            <div className="metric-card-label">{m.label}</div>
+            <div className="metric-card-value" style={{ color: m.color }}>{m.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Sidebar({ activeRuns, completedRuns, activeRunId, onSelect, onDelete }) {
   return (
     <div className="sidebar">
@@ -64,6 +100,7 @@ export default function Sidebar({ activeRuns, completedRuns, activeRunId, onSele
           : <div style={{ fontSize: 12, color: 'var(--muted)', padding: '6px 10px' }}>No completed runs</div>
         }
       </div>
+      <MetricsPanel activeRuns={activeRuns} completedRuns={completedRuns} />
     </div>
   )
 }
