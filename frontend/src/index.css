@@ -232,6 +232,12 @@ body {
 .md-confidence    { display: inline-flex; align-items: center; gap: 8px; margin: 6px 0; }
 .md-conf-label    { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .md-conf-value    { font-size: 11px; font-family: var(--font-mono); padding: 2px 8px; border-radius: 4px; background: rgba(110,231,183,0.1); color: var(--accent); border: 1px solid rgba(110,231,183,0.2); }
+.md-sources       { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.md-sources-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+.md-sources-list  { margin: 0; padding-left: 18px; list-style: decimal; }
+.md-sources-list li { font-size: 12px; padding: 2px 0; color: var(--muted); }
+.md-sources-list a  { color: var(--accent2); text-decoration: none; }
+.md-sources-list a:hover { text-decoration: underline; }
 
 /* ── Sidebar metrics panel ───────────────────────────────────────── */
 .metrics-panel {

@@ -37,6 +37,48 @@ function ReasoningDetail({ text }) {
 }
 
 // ── Final answer (markdown) ───────────────────────────────────────
+const URL_REGEX = /https?:\/\/[^\s)]+/g
+
+function extractUrls(text) {
+  const seen = new Set()
+  const urls = []
+  for (const match of text.matchAll(URL_REGEX)) {
+    const url = match[0]
+    if (!seen.has(url)) {
+      seen.add(url)
+      urls.push(url)
+    }
+  }
+  return urls
+}
+
+function domainFromUrl(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url.replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[/:?#]/)[0]
+  }
+}
+
+function SourcesSection({ text }) {
+  const urls = extractUrls(text)
+  if (!urls.length) return null
+  return (
+    <div className="md-sources">
+      <div className="md-sources-label">Sources</div>
+      <ol className="md-sources-list">
+        {urls.map(url => (
+          <li key={url}>
+            <a href={url} target="_blank" rel="noopener noreferrer">
+              {domainFromUrl(url)}
+            </a>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
 function MarkdownTable({ rows }) {
   const data = rows.filter(r => !/^\|[\s|:\-]+\|$/.test(r))
   if (!data.length) return null
@@ -83,7 +125,12 @@ function FinalAnswerDetail({ text }) {
     }
   }
   flush()
-  return <div className="step-detail final-answer open">{nodes}</div>
+  return (
+    <div className="step-detail final-answer open">
+      {nodes}
+      <SourcesSection text={text} />
+    </div>
+  )
 }
 
 // ── web_search ────────────────────────────────────────────────────
