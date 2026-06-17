@@ -1,6 +1,6 @@
 # Autonomous AI Agent System
 
-Full-stack autonomous agent: FastAPI + Redis + MongoDB + React dashboard.
+A full-stack autonomous AI agent that accepts a high-level goal, breaks it down into subtasks, and executes them step-by-step using OpenAI function calling. Each run is persisted in MongoDB, streamed live to a React dashboard over SSE, and processed asynchronously through a Redis-backed worker queue — so you can fire off long-running research or automation tasks and watch them unfold in real time.
 
 ## Architecture
 
