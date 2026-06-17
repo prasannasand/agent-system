@@ -11,6 +11,77 @@ const STATUS = {
   queued:  ['badge badge-running', '⏳ QUEUED',  { color: '#fbbf24' }],
 }
 
+// ── Pipeline stepper ──────────────────────────────────────────────
+const STAGES = [
+  {
+    label: 'Planning',
+    reached: (steps) => steps.some(s => s.name === 'Planning'),
+  },
+  {
+    label: 'Researching',
+    reached: (steps) => steps.some(s => s.name === 'web_search' || s.name === 'http_request'),
+  },
+  {
+    label: 'Analyzing',
+    reached: (steps) =>
+      steps.some(s => s.name === 'execute_python') ||
+      steps.filter(s => s.name === 'web_search' && (s.status === 'done' || s.status === 'failed')).length >= 2,
+  },
+  {
+    label: 'Generating\nReport',
+    reached: (steps) => steps.some(s => s.name === 'Final answer'),
+  },
+  {
+    label: 'Completed',
+    reached: (_steps, runStatus) => runStatus === 'done',
+  },
+]
+
+function PipelineStepper({ steps, runStatus }) {
+  if (!steps.length) return null
+
+  // Index of the last stage that has been activated
+  let lastReached = -1
+  STAGES.forEach((s, i) => {
+    if (s.reached(steps, runStatus)) lastReached = i
+  })
+
+  function stageState(i) {
+    // "Completed" is only done when the run itself is done
+    if (i === STAGES.length - 1) return runStatus === 'done' ? 'done' : 'pending'
+    if (runStatus === 'done') return 'done'
+    if (i < lastReached) return 'done'
+    if (i === lastReached) return 'active'
+    return 'pending'
+  }
+
+  const items = []
+  STAGES.forEach((stage, i) => {
+    const state = stageState(i)
+
+    if (i > 0) {
+      const connReached = stageState(i - 1) === 'done'
+      items.push(
+        <div key={`conn-${i}`} className={`pipeline-conn${connReached ? ' reached' : ''}`} />
+      )
+    }
+
+    items.push(
+      <div key={`step-${i}`} className="pipeline-step">
+        <div className={`pipeline-circle ${state}`}>
+          {state === 'done' ? '✓' : null}
+        </div>
+        <div className={`pipeline-label ${state}`}>
+          {stage.label}
+        </div>
+      </div>
+    )
+  })
+
+  return <div className="pipeline">{items}</div>
+}
+
+// ── RunPanel ──────────────────────────────────────────────────────
 export default function RunPanel({ run, elapsedMs }) {
   if (!run) {
     return (
@@ -43,7 +114,6 @@ export default function RunPanel({ run, elapsedMs }) {
   const doneSteps = steps.filter(s => s.status === 'done' || s.status === 'failed').length
   const tools     = run.tool_calls  ?? run.tools_used  ?? doneSteps
   const tokens    = run.tokens_used ?? run.tokens      ?? 0
-  // elapsedMs comes from the API response on every poll — no client-side interpolation
   const displayElapsed = fmtMs(elapsedMs)
 
   return (
@@ -74,6 +144,8 @@ export default function RunPanel({ run, elapsedMs }) {
           <div className="stat-val purple">{Number(tokens).toLocaleString()}</div>
         </div>
       </div>
+
+      <PipelineStepper steps={steps} runStatus={run.status} />
 
       <div className="steps-area">
         <div className="steps-title">Execution trace</div>
