@@ -148,7 +148,7 @@ function WebSearchDetail({ detail, dur }) {
       <div className="sd-results">
         {results.map((r, i) => (
           <div key={i} className="sd-result">
-            <a href={r.url} target="_blank" rel="noreferrer" className="sd-result-title">
+            <a href={typeof r.url === 'string' && /^https?:\/\//i.test(r.url) ? r.url : undefined} target="_blank" rel="noopener noreferrer" className="sd-result-title">
               {r.title || r.url}
             </a>
             {r.snippet && <div className="sd-result-snippet">{r.snippet}</div>}
